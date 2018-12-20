@@ -8,13 +8,12 @@ from PyQt5.QtSql import *
 
 
 class SignIn_W(QWidget):
-    is_admin_signal = pyqtSignal()
-    is_student_signal = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
-        self.resize(300, 200)
-        self.setWindowTitle("ChatDog")
+        self.resize(300, 600)
+
+        self.setWindowTitle("GoChat")
         self.setUpUI()
 
     def setUpUI(self):
@@ -23,7 +22,7 @@ class SignIn_W(QWidget):
         self.Hlayout2 = QHBoxLayout()
         self.formlayout = QFormLayout()
 
-        self.label1 = QLabel("邮箱: ")
+        self.label1 = QLabel("账号: ")
         labelFont = QFont()
         labelFont.setPixelSize(18)
         lineEditFont = QFont()
@@ -66,11 +65,11 @@ class SignIn_W(QWidget):
         self.signIn.setFont(labelFont)
         self.formlayout.addRow("", self.signIn)
 
-        self.label = QLabel("Welcome")
+
+        self.label = QLabel("GoChat")
         fontlabel = QFont()
-        fontlabel.setPixelSize(30)
-        self.label.setFixedWidth(390)
-        # self.label.setFixedHeight(80)
+        fontlabel.setPixelSize(60)
+        self.label.setFixedWidth(250)
         self.label.setFont(fontlabel)
         self.Hlayout1.addWidget(self.label, Qt.AlignCenter)
         self.widget1 = QWidget()

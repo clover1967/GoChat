@@ -15,7 +15,7 @@ class SignUp_W(QWidget):
         self.setUpUI()
 
     def setUpUI(self):
-        self.resize(300, 200)
+        self.resize(300, 600)
         self.setWindowTitle("ChatDog")
         self.signUpLabel = QLabel("注   册")
         self.signUpLabel.setAlignment(Qt.AlignCenter)
@@ -34,7 +34,7 @@ class SignUp_W(QWidget):
         self.formlayout = QFormLayout()
         font.setPixelSize(18)
         # Row1
-        self.studentIdLabel = QLabel("邮    箱: ")
+        self.studentIdLabel = QLabel("账    号: ")
         self.studentIdLabel.setFont(font)
         self.studentIdLineEdit = QLineEdit()
         self.studentIdLineEdit.setFixedWidth(180)
