@@ -17,7 +17,7 @@ class Clinet_S:
         """
         self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            address = ('192.168.1.107', int(9999))
+            address = ('192.168.1.104', int(9999))
         except Exception as ret:
             msg = '请检查目标IP，目标端口\n'
             print(msg)
@@ -25,6 +25,7 @@ class Clinet_S:
             try:
                 msg = '正在连接目标服务器\n'
                 print(msg)
+                print(address)
                 self.tcp_socket.connect(address)
             except Exception as ret:
                 msg = '无法连接目标服务器\n'
@@ -46,12 +47,12 @@ class Clinet_S:
             if recv_msg:
                 msg = recv_msg.decode('ascii')
                 msg = '来自IP:{}端口:{}:\n{}\n'.format(address[0], address[1], msg)
-                self.signal_write_msg.emit(msg)
+                print(msg)
             else:
                 self.tcp_socket.close()
                 self.reset()
                 msg = '从服务器断开连接\n'
-                self.signal_write_msg.emit(msg)
+                print(msg)
                 break
 
     def tcp_send(self, message):
@@ -103,3 +104,20 @@ class Clinet_S:
             stopThreading.stop_thread(self.client_th)
         except Exception:
             pass
+
+    def get_ip_port(self):
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(('8.8.8.8', 80))
+            my_addr = s.getsockname()
+        except Exception as ret:
+            # 若无法连接互联网使用，会调用以下方法
+            try:
+                my_addr = socket.gethostbyname(socket.gethostname())
+            except Exception as ret_e:
+                print("无法获取ip，请连接网络！\n")
+        finally:
+            s.close()
+
+        return my_addr

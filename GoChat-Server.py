@@ -3,6 +3,8 @@ import threading
 import sys
 import time
 import sqlite3
+import mutex
+import stopThreading
 
 
 class GoChat_Server:
@@ -12,6 +14,9 @@ class GoChat_Server:
         self.sever_th = None
         self.client_th = None
         self.client_socket_list = list()
+        self.client_socket_dict = dict()
+        self.client_online_dict = dict()
+        self.client_info_dict = dict()
 
         self.link = False  # 用于标记是否开启了连接
 
@@ -70,8 +75,9 @@ class GoChat_Server:
                     pass
                 else:
                     if recv_msg:
-                        msg = recv_msg.decode('utf-8')
-                        #self.solvemsg(msg)
+                        msg = recv_msg.decode('ascii')
+                        print(msg)
+                        self.server_recv_manage(recv_msg, client)
                         msg = '来自IP:{}端口:{}:\n{}\n'.format(address[0], address[1], msg)
                         print(msg)
                     else:
@@ -132,6 +138,81 @@ class GoChat_Server:
         except Exception:
             pass
 
+    def signup_manage(self, message, client):
+        if len(message) < 15:
+            print("packed message might be damaged")
+            return
+        Id = message[1:9]
+        password = message[9:]
+        mutex.lock.acquire()
+        for item in self.client_info_dict.keys():
+            print(item)
+        if Id in self.client_info_dict.keys():
+            retmsg = '0'.encode('ascii')
+            client.sendall(retmsg)
+            mutex.lock.release()
+            return
+        self.client_info_dict[Id] = password
+        retmsg = ('1' + Id).encode('ascii')
+        client.sendall(retmsg)
+        mutex.lock.release()
+
+    def login_manage(self, message, client):
+        if len(message) < 15:
+            print("packed message might be damaged")
+            return
+        Id = message[1:9]
+        password = message[9:]
+        mutex.lock.acquire()
+        if Id not in self.client_info_dict.keys():
+            retmsg = '0'.encode('ascii')
+            client.sendall(retmsg)
+            mutex.lock.release()
+            return
+        elif password != self.client_info_dict[Id]:
+            retmsg = '0'.encode('ascii')
+            client.sendall(retmsg)
+            mutex.lock.release()
+            return
+        retmsg = ('1' + Id).encode('ascii')
+        client.sendall(retmsg)
+        mutex.lock.release()
+
+    def msg_manage(self, message):
+        if len(message) < 23:
+            print("packed message might be damaged")
+            return
+        to_id = message[15:23].decode('ascii')
+        mutex.lock.acquire()
+        if to_id not in self.client_online_dict.keys():
+            mutex.lock.release()
+            return
+        aim = self.client_online_dict[to_id]
+        self.client_socket_dict[aim].sendall(message)
+        mutex.lock.release()
+
+    def reqfriend_manage(self, message):
+        if len(message) > 9:
+            print("packed message might be damaged")
+            return
+        Id = message[1:9]
+        aim = self.client_online_dict[Id]
+
+
+    def server_recv_manage(self, message, client):
+        instr = message.decode('ascii')
+        if instr[0] == '1':                    #sign up to server
+            self.signup_manage(instr, client)
+        elif instr[0] == '2':                  #log in to server
+            self.login_manage(instr, client)
+        elif instr[0] == '3':                  #send message to server
+            self.msg_manage(instr)
+        elif instr[0] == '4':                  #require for friend list to server
+            pass
+        elif instr[0] == '5':                  #friend admission
+            pass
+        elif instr[0] == '6':                  #log out to server
+            pass
 
 if __name__ == '__main__':
     GoChat_Server()

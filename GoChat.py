@@ -66,8 +66,6 @@ class GoChat(QMainWindow):
         self.widget = SignIn_W(self.client);
         self.setCentralWidget(self.widget)
 
-
-
     def SignUp(self):
         sip.delete(self.widget)
         self.widget = SignUp_W();

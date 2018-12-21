@@ -103,7 +103,8 @@ class SignIn_W(QWidget):
 
         print('signInCheck')
         print(password)
-        self.client.tcp_send(Id + password)
+
+        self.client.tcp_send("1" + Id + password)
 
         ##发送登录指令并且返回，成功 ShowFriends
 
