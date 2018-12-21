@@ -5,16 +5,17 @@ from PyQt5.QtCore import *
 import qdarkstyle
 import hashlib
 from PyQt5.QtSql import *
+from Clinet import Clinet_S
 
 
 class SignIn_W(QWidget):
-
-    def __init__(self):
+    def __init__(self, client):
         super().__init__()
         self.resize(300, 600)
 
         self.setWindowTitle("GoChat")
         self.setUpUI()
+        self.client = client
 
     def setUpUI(self):
         self.Vlayout = QVBoxLayout(self)
@@ -89,13 +90,8 @@ class SignIn_W(QWidget):
         #self.lineEdit1.returnPressed.connect(self.signInCheck)
 
 
-     def hash(src):
-        """
-        哈希md5加密方法
-        :param src: 字符串str
-        :return:
-        """
-        src = (src + "qewrqefasafsdafa").encode("utf-8")
+    def hash(self, src):
+        src = (src + "qewrqefasafsdafa").encode('ascii')
         m = hashlib.md5()
         m.update(src)
         return m.hexdigest()
@@ -104,6 +100,10 @@ class SignIn_W(QWidget):
         Id = self.lineEdit1.text()
         password = self.lineEdit2.text()
         password = self.hash(password)
+
+        print('signInCheck')
+        print(password)
+        self.client.tcp_send(Id + password)
 
         ##发送登录指令并且返回，成功 ShowFriends
 

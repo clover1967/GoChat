@@ -7,6 +7,7 @@ from SignIn import SignIn_W
 from SignUp import SignUp_W
 from ChatHome import ChatHome_W
 from ChatWindow import ChatWindow_W
+from Clinet import Clinet_S
 
 import qdarkstyle
 import sip
@@ -19,9 +20,12 @@ class GoChat(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        #服务开启
+        self.clinet = Clinet_S();
+
         self.resize(300, 600)
         self.setWindowTitle("GoChat")
-        self.widget = SignIn_W()
+        self.widget = SignIn_W(self.clinet)
         self.setCentralWidget(self.widget)
 
         menubar = self.menuBar()
@@ -51,19 +55,24 @@ class GoChat(QMainWindow):
         fileMenu.addAction(self.AddFriendsAction)
         self.AddFriendsAction.setEnabled(False)
 
+        #
+
     #事件
     def unwrite(self):
         _a_ = 1;
 
     def SignIn(self):
         sip.delete(self.widget)
-        self.widget = SignIn_W();
+        self.widget = SignIn_W(self.client);
         self.setCentralWidget(self.widget)
+
+
 
     def SignUp(self):
         sip.delete(self.widget)
         self.widget = SignUp_W();
         self.setCentralWidget(self.widget)
+
 
     ##def Chatting_W(self):
     def ShowFriends(self):

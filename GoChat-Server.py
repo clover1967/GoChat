@@ -71,7 +71,7 @@ class GoChat_Server:
                 else:
                     if recv_msg:
                         msg = recv_msg.decode('utf-8')
-                        self.solvemsg(msg)
+                        #self.solvemsg(msg)
                         msg = '来自IP:{}端口:{}:\n{}\n'.format(address[0], address[1], msg)
                         print(msg)
                     else:
