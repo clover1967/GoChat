@@ -88,13 +88,24 @@ class SignIn_W(QWidget):
         #self.lineEdit2.returnPressed.connect(self.signInCheck)
         #self.lineEdit1.returnPressed.connect(self.signInCheck)
 
+
+     def hash(src):
+        """
+        哈希md5加密方法
+        :param src: 字符串str
+        :return:
+        """
+        src = (src + "qewrqefasafsdafa").encode("utf-8")
+        m = hashlib.md5()
+        m.update(src)
+        return m.hexdigest()
+
     def signInCheck(self):
-        studentId = self.lineEdit1.text()
+        Id = self.lineEdit1.text()
         password = self.lineEdit2.text()
-        if (studentId == "" or password == ""):
-            print(QMessageBox.warning(self, "警告", "账号和密码不可为空!", QMessageBox.Yes, QMessageBox.Yes))
-            return
-        ##连接服务器并返回
+        password = self.hash(password)
+
+        ##发送登录指令并且返回，成功 ShowFriends
 
 
         '''
