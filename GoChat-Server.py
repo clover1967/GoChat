@@ -5,6 +5,7 @@ import time
 import sqlite3
 import mutex
 import stopThreading
+import struct
 
 
 class GoChat_Server:
@@ -13,10 +14,10 @@ class GoChat_Server:
         self.tcp_socket = None
         self.sever_th = None
         self.client_th = None
-        self.client_socket_list = list()
-        self.client_online_dict = dict()
-        self.client_info_dict = dict()
-
+        self.client_socket_list = list()                    #用于轮询的客户端socket列表
+        self.client_online_dict = dict()                    #在线客户端socket字典,key为账号(8byte字符串),value为socket对象
+        self.client_info_dict = dict()                      #用户个人信息字典,key为账号(8byte字符串),value为list,第0个元素为密码,之后的元素为好友账号
+                                                            #以上两个字典应从文件读入
         self.link = False  # 用于标记是否开启了连接
 
         #开启ID-Key数据库
@@ -139,154 +140,196 @@ class GoChat_Server:
 
     #以下是服务端处理客户端发来的消息的函数
 
-    def signup_manage(self, message, client):
-        if len(message) < 9:
-            print("packed message might be damaged")
+    def signup_manage(self, message, client, length):           #服务端收到客户端的注册消息
+        if len(message) < length:                               #message格式为:'1'+账号(8byte)+密码
+            print("packed message might be broken")
+            return
+        Id = message[1:9]
+        password = message[9:]
+        mutex.lock.acquire()                                    #加锁
+        if Id in self.client_info_dict.keys():                  #账号重复
+            retmsg = '0'.encode('ascii')                        #服务端发送'0',表示注册失败
+            try:                                                #使用try except语句,避免运行时爆炸
+                client.sendall(retmsg)
+            except Exception:
+                print('client crashed')
+            mutex.lock.release()                                #释放锁
+            return
+        self.client_info_dict[Id].append(password)              #该字典为用户个人信息,key为账号,value为列表,第0个元素为密码,之后的元素为好友账号
+        retmsg = ('1' + Id).encode('ascii')                     #服务端发送'1'+账号表示注册成功
+        try:
+            client.sendall(retmsg)
+        except Exception:
+            print('client crashed')
+        mutex.lock.release()
+
+    def login_manage(self, message, client, length):            #服务端收到客户端的登陆消息
+        if len(message) < length:                               #message格式为:'2'+账号(8byte)+密码
+            print("packed message might be broken")
             return
         Id = message[1:9]
         password = message[9:]
         mutex.lock.acquire()
-        if Id in self.client_info_dict.keys():
-            retmsg = '0'.encode('ascii')
+        if Id not in self.client_info_dict.keys():              #账号不存在
+            retmsg = '0'.encode('ascii')                        #服务端发送'0',表示登陆失败
             try:
                 client.sendall(retmsg)
             except Exception:
-                pass
+                print('client crashed')
             mutex.lock.release()
             return
-        self.client_info_dict[Id].append(password)
-        retmsg = ('1' + Id).encode('ascii')
+        elif password != self.client_info_dict[Id][0]:          #密码不正确
+            retmsg = '0'.encode('ascii')                        #服务端发送'0',表示登陆失败
+            try:
+                client.sendall(retmsg)
+            except Exception:
+                print('client crashed')
+            mutex.lock.release()
+            return
+        self.client_online_dict[Id] = client                    #登陆成功,将client加入在线字典(该变量注释见init函数)
+        retmsg = ('1' + Id).encode('ascii')                     #服务端发送'1'+账号表示登陆成功
         try:
             client.sendall(retmsg)
         except Exception:
-            pass
+            print('client crashed')
         mutex.lock.release()
 
-    def login_manage(self, message, client):
-        if len(message) < 9:
-            print("packed message might be damaged")
-            return
-        Id = message[1:9]
-        password = message[9:]
-        mutex.lock.acquire()
-        if Id not in self.client_info_dict.keys():
-            retmsg = '0'.encode('ascii')
-            try:
-                client.sendall(retmsg)
-            except Exception:
-                pass
-            mutex.lock.release()
-            return
-        elif password != self.client_info_dict[Id][0]:
-            retmsg = '0'.encode('ascii')
-            try:
-                client.sendall(retmsg)
-            except Exception:
-                pass
-            mutex.lock.release()
-            return
-        self.client_online_dict[Id] = client
-        retmsg = ('1' + Id).encode('ascii')
-        try:
-            client.sendall(retmsg)
-        except Exception:
-            pass
-        mutex.lock.release()
-
-    def msg_manage(self, message):
-        if len(message) < 17:
-            print("packed message might be damaged")
+    def msg_manage(self, message, length):                      #服务端收到客户端发来的一般消息
+        if len(message) < length:                               #message格式为:'3'+发送者账号(8byte)+接收者账号(8byte)+消息(ascii)
+            print("packed message might be broken")
             return
         from_id = message[1:9]
         to_id = message[9:17]
         mutex.lock.acquire()
-        if to_id not in self.client_online_dict.keys():
+        if to_id not in self.client_online_dict.keys():         #对方不在线
             retmsg = '0'.encode('ascii')
             try:
                 self.client_online_dict[from_id].sendall(retmsg)
             except Exception:
-                pass
+                print('client crashed')
             mutex.lock.release()
             return
         try:
-            binmsg = message.encode('ascii')
+            binmsg = message[:length].encode('ascii')           #为了避免两条消息黏在一起,只发送符合长度的部分
             self.client_online_dict[to_id].sendall(binmsg)
         except Exception:
-            pass
+            print('client crashed')
         mutex.lock.release()
 
-    def reqfriendlist_manage(self, message):
-        if len(message) < 9:
-            print("packed message might be damaged")
+    def reqfriendlist_manage(self, message, length):            #服务器收到客户端发送的好友列表请求
+        if len(message) < length:                               #message格式为:'4'+账号
+            print("packed message might be broken")
             return
         Id = message[1:9]
         ret = str()
         i = 0
         mutex.lock.acquire()
-        num = len(self.client_info_dict[Id]) - 1
-        for item in self.client_info_dict[Id]:
+        if Id not in self.client_info_dict.keys():              #账号对应的个人信息(密码、好友列表)不存在(不应该走到这里)
+            retmsg = '0'.encode('ascii')
+            try:
+                self.client_online_dict[Id].sendall(retmsg)
+            except Exception:
+                print('client crashed')
+            mutex.lock.release()
+            return
+        num = 0 
+        for item in self.client_info_dict[Id]:                  #个人信息是一个列表,第0个元素是密码,之后的元素是好友账号(每个8byte)
             if i == 0:
                 i += 1
-                ret = ret + str(num)
                 continue
-            ret = ret + item
+            if item in self.client_online_dict.keys():          #只返回在线好友列表
+                num += 1
+                ret = ret + item
         try:
             binmsg = ret.encode('ascii')
-            self.client_online_dict[Id].sendall(binmsg)
+            binmsg = '4'.encode('ascii') + struct.pack('>L', num) + binmsg
+            self.client_online_dict[Id].sendall(binmsg)         #服务端发回的字节串格式是:'4'+在线好友个数(4byte整数)+在线好友账号(每个8byte)
         except Exception:
-            pass
+            print('client crashed')
         mutex.lock.release()
 
-    def addfriend_manage(self, message):
-        if len(message) < 17:
-            print("packed message might be damaged")
+    def addfriend_manage(self, message, length):                #服务端收到客户端的加好友申请
+        if len(message) < length:                               #message格式为:'5'+发送者账号(8byte)+接收者账号(8byte)
+            print("packed message might be broken")
             return
         from_id = message[1:9]
         to_id = message[9:17]
         mutex.lock.acquire()
-        if to_id not in self.client_online_dict.keys():
+        if to_id not in self.client_online_dict.keys():         #要添加的好友不在线
             try:
                 retmsg = '0'.encode('ascii')
                 self.client_online_dict[from_id].sendall(retmsg)
             except Exception:
-                pass
+                print('client crashed')
             mutex.lock.release()
             return
         try:
-            self.client_online_dict[to_id].sendall(message.encode('ascii'))
-        except Exception:
-            pass
+            self.client_online_dict[to_id].sendall(message[:length].encode('ascii'))
+        except Exception:                                       #将好友申请消息原样发送
+            print('client crashed')
+            mutex.lock.release()
+            return
         try:
-            retmsg = '1'.encode('ascii')
+            retmsg = '1'.encode('ascii')                        #给发送方返回发送成功消息
             self.client_online_dict[from_id].sendall(retmsg)
         except Exception:
-            pass
+            print('client crashed')
         mutex.lock.release()
 
-    def logout_manage(self, message):
-        if len(message) < 9:
-            print("packed message might be damaged")
+    def logout_manage(self, message, length):                   #服务端收到客户端的登出消息
+        if len(message) < length:                               #message格式为:'6'+发送者账号(8byte)
+            print("packed message might be broken")
             return
         Id = message[1:9]
         mutex.lock.acquire()
-        if Id in self.client_online_dict.keys():
+        if Id in self.client_online_dict.keys():                #将发送者从在线列表中移除
             self.client_online_dict[Id] = None
+        mutex.lock.release()
+    
+    def agree_manage(self, message, length):                    #服务端收到客户端的同意添加好友消息
+        if len(message) < length:                               #message格式为:'7'+同意者账号(8byte)+请求者账号(8byte)
+            print("packed message might be broken")
+            return
+        agr_id = message[1:9]
+        req_id = message[9:17]
+        mutex.lock.acquire()
+        if agr_id not in self.client_info_dict.keys():          #若同意者个人信息不存在(不应该走到这里)
+            mutex.lock.release()
+            return
+        if req_id not in self.client_info_dict.keys():          #若发送者个人信息不存在
+            retmsg = '0'.encode('ascii')
+            try:
+                self.client_online_dict[agr_id].sendall(retmsg)
+            except Exception:
+                print('client crashed')
+            mutex.lock.release()
+            return
+        self.client_info_dict[agr_id].append(req_id)            #互加好友
+        self.client_info_dict[req_id].append(agr_id)
+        try:
+            retmsg = '7'.encode('ascii')                        #向请求者发送好友申请已通过的消息('7')
+            self.client_online_dict[req_id].sendall(retmsg)
+        except Exception:
+            print('client crashed or is not online')            #申请者可能不在线
         mutex.lock.release()
 
     def server_recv_manage(self, message, client):
-        instr = message.decode('ascii')
-        if instr[0] == '1':                    #sign up to server
-            self.signup_manage(instr, client)
-        elif instr[0] == '2':                  #log in to server
-            self.login_manage(instr, client)
-        elif instr[0] == '3':                  #send message to server
-            self.msg_manage(instr)
-        elif instr[0] == '4':                  #require for friend list to server
-            self.reqfriendlist_manage(instr)
-        elif instr[0] == '5':                  #add friend
-            self.addfriend_manage(instr)
-        elif instr[0] == '6':                  #log out to server
-            self.logout_manage(instr)
+        length = struct.unpack('>L',message[0:4])[0]        #字节串message的前4字节表示消息长度
+        instr = message[4:].decode('ascii')
+        if instr[0] == '1':                                 #sign up to server
+            self.signup_manage(instr, client, length)
+        elif instr[0] == '2':                               #log in to server
+            self.login_manage(instr, client, length)
+        elif instr[0] == '3':                               #send message to server
+            self.msg_manage(instr, length)
+        elif instr[0] == '4':                               #require for friend list to server
+            self.reqfriendlist_manage(instr, length)
+        elif instr[0] == '5':                               #add friend
+            self.addfriend_manage(instr, length)
+        elif instr[0] == '6':                               #log out to server
+            self.logout_manage(instr, length)
+        elif instr[0] == '7':                               #agree to add friend to server
+            self.agree_manage(instr, length)
         else:
             print('unknown instruction')
 
