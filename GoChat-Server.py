@@ -14,7 +14,6 @@ class GoChat_Server:
         self.sever_th = None
         self.client_th = None
         self.client_socket_list = list()
-        self.client_socket_dict = dict()
         self.client_online_dict = dict()
         self.client_info_dict = dict()
 
@@ -138,27 +137,33 @@ class GoChat_Server:
         except Exception:
             pass
 
+    #以下是服务端处理客户端发来的消息的函数
+
     def signup_manage(self, message, client):
-        if len(message) < 15:
+        if len(message) < 9:
             print("packed message might be damaged")
             return
         Id = message[1:9]
         password = message[9:]
         mutex.lock.acquire()
-        for item in self.client_info_dict.keys():
-            print(item)
         if Id in self.client_info_dict.keys():
             retmsg = '0'.encode('ascii')
-            client.sendall(retmsg)
+            try:
+                client.sendall(retmsg)
+            except Exception:
+                pass
             mutex.lock.release()
             return
-        self.client_info_dict[Id] = password
+        self.client_info_dict[Id].append(password)
         retmsg = ('1' + Id).encode('ascii')
-        client.sendall(retmsg)
+        try:
+            client.sendall(retmsg)
+        except Exception:
+            pass
         mutex.lock.release()
 
     def login_manage(self, message, client):
-        if len(message) < 15:
+        if len(message) < 9:
             print("packed message might be damaged")
             return
         Id = message[1:9]
@@ -166,38 +171,107 @@ class GoChat_Server:
         mutex.lock.acquire()
         if Id not in self.client_info_dict.keys():
             retmsg = '0'.encode('ascii')
-            client.sendall(retmsg)
+            try:
+                client.sendall(retmsg)
+            except Exception:
+                pass
             mutex.lock.release()
             return
-        elif password != self.client_info_dict[Id]:
+        elif password != self.client_info_dict[Id][0]:
             retmsg = '0'.encode('ascii')
-            client.sendall(retmsg)
+            try:
+                client.sendall(retmsg)
+            except Exception:
+                pass
             mutex.lock.release()
             return
+        self.client_online_dict[Id] = client
         retmsg = ('1' + Id).encode('ascii')
-        client.sendall(retmsg)
+        try:
+            client.sendall(retmsg)
+        except Exception:
+            pass
         mutex.lock.release()
 
     def msg_manage(self, message):
-        if len(message) < 23:
+        if len(message) < 17:
             print("packed message might be damaged")
             return
-        to_id = message[15:23].decode('ascii')
+        from_id = message[1:9]
+        to_id = message[9:17]
         mutex.lock.acquire()
         if to_id not in self.client_online_dict.keys():
+            retmsg = '0'.encode('ascii')
+            try:
+                self.client_online_dict[from_id].sendall(retmsg)
+            except Exception:
+                pass
             mutex.lock.release()
             return
-        aim = self.client_online_dict[to_id]
-        self.client_socket_dict[aim].sendall(message)
+        try:
+            binmsg = message.encode('ascii')
+            self.client_online_dict[to_id].sendall(binmsg)
+        except Exception:
+            pass
         mutex.lock.release()
 
-    def reqfriend_manage(self, message):
-        if len(message) > 9:
+    def reqfriendlist_manage(self, message):
+        if len(message) < 9:
             print("packed message might be damaged")
             return
         Id = message[1:9]
-        aim = self.client_online_dict[Id]
+        ret = str()
+        i = 0
+        mutex.lock.acquire()
+        num = len(self.client_info_dict[Id]) - 1
+        for item in self.client_info_dict[Id]:
+            if i == 0:
+                i += 1
+                ret = ret + str(num)
+                continue
+            ret = ret + item
+        try:
+            binmsg = ret.encode('ascii')
+            self.client_online_dict[Id].sendall(binmsg)
+        except Exception:
+            pass
+        mutex.lock.release()
 
+    def addfriend_manage(self, message):
+        if len(message) < 17:
+            print("packed message might be damaged")
+            return
+        from_id = message[1:9]
+        to_id = message[9:17]
+        mutex.lock.acquire()
+        if to_id not in self.client_online_dict.keys():
+            try:
+                retmsg = '0'.encode('ascii')
+                self.client_online_dict[from_id].sendall(retmsg)
+            except Exception:
+                pass
+            mutex.lock.release()
+            return
+        try:
+            self.client_online_dict[to_id].sendall(message.encode('ascii'))
+        except Exception:
+            pass
+        try:
+            retmsg = '1'.encode('ascii')
+            self.client_online_dict[from_id].sendall(retmsg)
+        except Exception:
+            pass
+        mutex.lock.release()
+
+    def logout_manage(self, message):
+        if len(message) < 9:
+            print("packed message might be damaged")
+            return
+        Id = message[1:9]
+        mutex.lock.acquire()
+        if Id in self.client_online_dict.keys():
+            self.client_online_dict[Id] = None
+        mutex.lock.release()
 
     def server_recv_manage(self, message, client):
         instr = message.decode('ascii')
@@ -208,12 +282,13 @@ class GoChat_Server:
         elif instr[0] == '3':                  #send message to server
             self.msg_manage(instr)
         elif instr[0] == '4':                  #require for friend list to server
-            pass
-        elif instr[0] == '5':                  #friend admission
-            pass
+            self.reqfriendlist_manage(instr)
+        elif instr[0] == '5':                  #add friend
+            self.addfriend_manage(instr)
         elif instr[0] == '6':                  #log out to server
-            pass
+            self.logout_manage(instr)
+        else:
+            print('unknown instruction')
 
 if __name__ == '__main__':
     GoChat_Server()
-#refh
