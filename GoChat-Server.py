@@ -307,7 +307,7 @@ class GoChat_Server:
         self.client_info_dict[agr_id].append(req_id)            #互加好友
         self.client_info_dict[req_id].append(agr_id)
         try:
-            retmsg = ('7' + agr_id).encode('ascii')                        #向请求者发送好友申请已通过的消息('7')
+            retmsg = ('7' + agr_id).encode('ascii')             #向请求者发送好友申请已通过的消息('7')+同意者账号(8byte)
             self.client_online_dict[req_id].sendall(retmsg)
         except Exception:
             print('client crashed or is not online')            #申请者可能不在线
