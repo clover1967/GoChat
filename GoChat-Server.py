@@ -253,7 +253,7 @@ class GoChat_Server:
         to_id = message[9:17]
         mutex.lock.acquire()
         if to_id not in self.client_online_dict.keys():         #对方不在线
-            retmsg = '30'.encode('ascii')
+            retmsg = '40'.encode('ascii')
             try:
                 #retmsg = cmessage(retmsg)
                 self.client_online_dict[from_id].sendall(retmsg)
