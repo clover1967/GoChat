@@ -18,8 +18,8 @@ class GoChat_Server:
         self.client_online_dict = dict()                    #在线客户端socket字典,key为账号(8byte字符串),value为socket对象
         self.client_info_dict = dict()                      #用户个人信息字典,key为账号(8byte字符串),value为密码
         self.client_friend_dict = dict()                    #用户好友字典,key为账号,value为好友账号的set(每个都是8byte字符串)
-        self.load_info('info.txt')                          #从文件读入字典
-        self.load_friend('friend.txt')
+        self.load_info('D:\pywork_64\GoChat\info.txt')                          #从文件读入字典
+        self.load_friend('D:\pywork_64\GoChat\\friend.txt')
         self.link = False  # 用于标记是否开启了连接
 
         #开启ID-Key数据库
@@ -362,8 +362,10 @@ class GoChat_Server:
     def load_info(self, filename):
         rp = open(filename, 'r')
         mutex.lock.acquire()
-        while rp:
+        while 1:
             s = rp.readline()
+            if s == '':
+                break
             l = s.split(' ')
             self.client_info_dict[l[0]] = l[1]
         rp.close()
@@ -372,8 +374,10 @@ class GoChat_Server:
     def load_friend(self, filename):
         rp = open(filename, 'r')
         mutex.lock.acquire()
-        while rp:
+        while 1:
             s = rp.readline()
+            if s == '':
+                break
             l = s.split(' ')
             n = int(l[1])
             self.client_friend_dict[l[0]] = set()
