@@ -8,7 +8,7 @@ from PyQt5.QtSql import *
 from Clinet import Clinet_S
 
 
-class SignIn_W(QWidget):
+class LogIn_W(QWidget):
     def __init__(self, client):
         super().__init__()
         self.resize(300, 600)
@@ -90,21 +90,17 @@ class SignIn_W(QWidget):
         #self.lineEdit1.returnPressed.connect(self.signInCheck)
 
 
-    def hash(self, src):
-        src = (src + "qewrqefasafsdafa").encode('ascii')
-        m = hashlib.md5()
-        m.update(src)
-        return m.hexdigest()
+
 
     def signInCheck(self):
+        print('signInCheck')
         Id = self.lineEdit1.text()
         password = self.lineEdit2.text()
-        password = self.hash(password)
+        password = Clinet_S.hash(password)
+        str = "2" + Id + password
 
-        print('signInCheck')
-        print(password)
-
-        self.client.tcp_send("1" + Id + password)
+        str =  str.encode('ascii')
+        self.client.tcp_send(str)
 
         ##发送登录指令并且返回，成功 ShowFriends
 
