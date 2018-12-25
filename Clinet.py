@@ -19,7 +19,7 @@ class Clinet_S:
         """
         self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            address = ('192.168.1.101', int(9999))
+            address = ('127.0.0.1', int(9999))
         except Exception as ret:
             msg = '请检查目标IP，目标端口\n'
             print(msg)

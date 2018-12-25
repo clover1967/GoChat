@@ -97,7 +97,7 @@ class LogIn_W(QWidget):
         Id = self.lineEdit1.text()
         password = self.lineEdit2.text()
         password = Clinet_S.hash(password)
-        str = "2" + Id + password
+        str = '611433821614338216'
 
         str =  str.encode('ascii')
         self.client.tcp_send(str)
