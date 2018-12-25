@@ -18,6 +18,10 @@ class GoChat_Server:
         self.client_online_dict = dict()                    #在线客户端socket字典,key为账号(8byte字符串),value为socket对象
         self.client_info_dict = dict()                      #用户个人信息字典,key为账号(8byte字符串),value为list,第0个元素为密码,之后的元素为好友账号
                                                             #以上两个字典应从文件读入
+        #读取id信息
+        self.client_info_dict.update({"12345678":["99553ed8f9504c64646938210d008e1c"]})
+        #读取用户好友列表
+
         self.link = False  # 用于标记是否开启了连接
 
         #开启ID-Key数据库
@@ -76,7 +80,7 @@ class GoChat_Server:
                 else:
                     if recv_msg:
                         msg = recv_msg.decode('ascii')
-                        print(msg)
+                        #print(msg)
                         self.server_recv_manage(recv_msg, client)
                         msg = '来自IP:{}端口:{}:\n{}\n'.format(address[0], address[1], msg)
                         print(msg)
@@ -84,14 +88,19 @@ class GoChat_Server:
                         client.close()
                         self.client_socket_list.remove((client, address))
 
-    def tcp_send(self):
+    def tcp_send(self, message, clinet):
         """
         功能函数，用于TCP服务端和TCP客户端发送消息
         :return: None
         """
+        print(message)
+        length = len(message)
+        message = struct.pack('>L', length) + message
+        print(message)
+
         if self.link is False:
             msg = '请选择服务，并点击连接网络\n'
-            self.signal_write_msg.emit(msg)
+            print(msg)
         else:
             try:
                 send_msg = (str(self.textEdit_send.toPlainText())).encode('utf-8')
@@ -140,60 +149,89 @@ class GoChat_Server:
 
     #以下是服务端处理客户端发来的消息的函数
 
+    #1
     def signup_manage(self, message, client, length):           #服务端收到客户端的注册消息
+        print("signup_manage")
+
         if len(message) < length:                               #message格式为:'1'+账号(8byte)+密码
             print("packed message might be broken")
             return
         Id = message[1:9]
         password = message[9:]
+        print(Id)
+        print(password)
         mutex.lock.acquire()                                    #加锁
+        print(self.client_info_dict.keys())
         if Id in self.client_info_dict.keys():                  #账号重复
-            retmsg = '0'.encode('ascii')                        #服务端发送'0',表示注册失败
+            retmsg = "10".encode('ascii')                        #服务端发送'0',表示注册失败
             try:                                                #使用try except语句,避免运行时爆炸
+                retmsg = cmessage(retmsg)
                 client.sendall(retmsg)
             except Exception:
                 print('client crashed')
             mutex.lock.release()                                #释放锁
             return
-        self.client_info_dict[Id].append(password)              #该字典为用户个人信息,key为账号,value为列表,第0个元素为密码,之后的元素为好友账号
-        retmsg = ('1' + Id).encode('ascii')                     #服务端发送'1'+账号表示注册成功
+        self.client_info_dict.update({Id : [password]})              #该字典为用户个人信息,key为账号,value为列表,第0个元素为密码,之后的元素为好友账号
+        retmsg = ('11' + Id).encode('ascii')                     #服务端发送'1'+账号表示注册成功
         try:
+            retmsg = cmessage(retmsg)
             client.sendall(retmsg)
         except Exception:
             print('client crashed')
         mutex.lock.release()
 
+    #2
     def login_manage(self, message, client, length):            #服务端收到客户端的登陆消息
+
+        print("login_manage")
+        print(self.client_info_dict)
         if len(message) < length:                               #message格式为:'2'+账号(8byte)+密码
             print("packed message might be broken")
             return
         Id = message[1:9]
         password = message[9:]
         mutex.lock.acquire()
+        print(self.client_info_dict[Id])
+        print(password)
         if Id not in self.client_info_dict.keys():              #账号不存在
-            retmsg = '0'.encode('ascii')                        #服务端发送'0',表示登陆失败
+            retmsg = '20'.encode('ascii')                        #服务端发送'0',表示登陆失败
             try:
+                retmsg = cmessage(retmsg)
                 client.sendall(retmsg)
             except Exception:
                 print('client crashed')
             mutex.lock.release()
             return
         elif password != self.client_info_dict[Id][0]:          #密码不正确
-            retmsg = '0'.encode('ascii')                        #服务端发送'0',表示登陆失败
+            retmsg = '20'.encode('ascii')                        #服务端发送'0',表示登陆失败
             try:
+                retmsg = cmessage(retmsg)
                 client.sendall(retmsg)
             except Exception:
                 print('client crashed')
             mutex.lock.release()
             return
         self.client_online_dict[Id] = client                    #登陆成功,将client加入在线字典(该变量注释见init函数)
-        retmsg = ('1' + Id).encode('ascii')                     #服务端发送'1'+账号表示登陆成功
+        retmsg = ('21' + Id).encode('ascii')                     #服务端发送'1'+账号表示登陆成功
         try:
+            retmsg = cmessage(retmsg)
             client.sendall(retmsg)
         except Exception:
             print('client crashed')
         mutex.lock.release()
 
+    #3
+    def logout_manage(self, message, length):                   #服务端收到客户端的登出消息
+        if len(message) < length:                               #message格式为:'6'+发送者账号(8byte)
+            print("packed message might be broken")
+            return
+        Id = message[1:9]
+        mutex.lock.acquire()
+        if Id in self.client_online_dict.keys():                #将发送者从在线列表中移除
+            self.client_online_dict[Id] = None
+        mutex.lock.release()
+
+    #4
     def msg_manage(self, message, length):                      #服务端收到客户端发来的一般消息
         if len(message) < length:                               #message格式为:'3'+发送者账号(8byte)+接收者账号(8byte)+消息(ascii)
             print("packed message might be broken")
@@ -204,6 +242,7 @@ class GoChat_Server:
         if to_id not in self.client_online_dict.keys():         #对方不在线
             retmsg = '0'.encode('ascii')
             try:
+                retmsg = cmessage(retmsg)
                 self.client_online_dict[from_id].sendall(retmsg)
             except Exception:
                 print('client crashed')
@@ -211,11 +250,13 @@ class GoChat_Server:
             return
         try:
             binmsg = message[:length].encode('ascii')           #为了避免两条消息黏在一起,只发送符合长度的部分
+            binmsg = cmessage(binmsg)
             self.client_online_dict[to_id].sendall(binmsg)
         except Exception:
             print('client crashed')
         mutex.lock.release()
 
+    #5
     def reqfriendlist_manage(self, message, length):            #服务器收到客户端发送的好友列表请求
         if len(message) < length:                               #message格式为:'4'+账号
             print("packed message might be broken")
@@ -225,14 +266,15 @@ class GoChat_Server:
         i = 0
         mutex.lock.acquire()
         if Id not in self.client_info_dict.keys():              #账号对应的个人信息(密码、好友列表)不存在(不应该走到这里)
-            retmsg = '0'.encode('ascii')
+            retmsg = '50'.encode('ascii')
             try:
+                etmsg = cmessage(retmsg)
                 self.client_online_dict[Id].sendall(retmsg)
             except Exception:
                 print('client crashed')
             mutex.lock.release()
             return
-        num = 0 
+        num = 0
         for item in self.client_info_dict[Id]:                  #个人信息是一个列表,第0个元素是密码,之后的元素是好友账号(每个8byte)
             if i == 0:
                 i += 1
@@ -243,11 +285,13 @@ class GoChat_Server:
         try:
             binmsg = ret.encode('ascii')
             binmsg = '4'.encode('ascii') + struct.pack('>L', num) + binmsg
-            self.client_online_dict[Id].sendall(binmsg)         #服务端发回的字节串格式是:'4'+在线好友个数(4byte整数)+在线好友账号(每个8byte)
+            binmsg = cmessage(retmsg)
+            self.client_online_dict[Id].sendall(binmsg)         #服务端发回的字节串格式是:'5'+在线好友个数(4byte整数)+在线好友账号(每个8byte)
         except Exception:
             print('client crashed')
         mutex.lock.release()
 
+    #6
     def addfriend_manage(self, message, length):                #服务端收到客户端的加好友申请
         if len(message) < length:                               #message格式为:'5'+发送者账号(8byte)+接收者账号(8byte)
             print("packed message might be broken")
@@ -276,16 +320,6 @@ class GoChat_Server:
             print('client crashed')
         mutex.lock.release()
 
-    def logout_manage(self, message, length):                   #服务端收到客户端的登出消息
-        if len(message) < length:                               #message格式为:'6'+发送者账号(8byte)
-            print("packed message might be broken")
-            return
-        Id = message[1:9]
-        mutex.lock.acquire()
-        if Id in self.client_online_dict.keys():                #将发送者从在线列表中移除
-            self.client_online_dict[Id] = None
-        mutex.lock.release()
-    
     def agree_manage(self, message, length):                    #服务端收到客户端的同意添加好友消息
         if len(message) < length:                               #message格式为:'7'+同意者账号(8byte)+请求者账号(8byte)
             print("packed message might be broken")
@@ -313,9 +347,16 @@ class GoChat_Server:
             print('client crashed or is not online')            #申请者可能不在线
         mutex.lock.release()
 
+    #7
+    def delfriend_manage(self, message, length):
+        return
+
     def server_recv_manage(self, message, client):
+        print("server_recv_manage")
+        print(message)
         length = struct.unpack('>L',message[0:4])[0]        #字节串message的前4字节表示消息长度
         instr = message[4:].decode('ascii')
+        print(length, instr)
         if instr[0] == '1':                                 #sign up to server
             self.signup_manage(instr, client, length)
         elif instr[0] == '2':                               #log in to server

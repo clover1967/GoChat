@@ -4,15 +4,19 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 import qdarkstyle
 from PyQt5.QtSql import *
-import hashlib
+from Clinet import Clinet_S
 
 
 class SignUp_W(QWidget):
     student_signup_signal = pyqtSignal(str)
 
-    def __init__(self):
+    def __init__(self, client):
         super().__init__()
+        self.resize(300, 600)
+
+        self.setWindowTitle("GoChat")
         self.setUpUI()
+        self.client = client
 
     def setUpUI(self):
         self.resize(300, 600)
@@ -30,20 +34,21 @@ class SignUp_W(QWidget):
         self.layout = QVBoxLayout()
         self.layout.addWidget(self.signUpLabel, Qt.AlignHCenter)
         self.setLayout(self.layout)
-        # 表单，包括学号，姓名，密码，确认密码
+        # 表单，包括ID，密码，确认密码
         self.formlayout = QFormLayout()
         font.setPixelSize(18)
         # Row1
-        self.studentIdLabel = QLabel("账    号: ")
-        self.studentIdLabel.setFont(font)
-        self.studentIdLineEdit = QLineEdit()
-        self.studentIdLineEdit.setFixedWidth(180)
-        self.studentIdLineEdit.setFixedHeight(32)
-        self.studentIdLineEdit.setFont(lineEditFont)
-        self.studentIdLineEdit.setMaxLength(10)
-        self.formlayout.addRow(self.studentIdLabel, self.studentIdLineEdit)
+        self.IdLabel = QLabel("账    号: ")
+        self.IdLabel.setFont(font)
+        self.IdLineEdit = QLineEdit()
+        self.IdLineEdit.setFixedWidth(180)
+        self.IdLineEdit.setFixedHeight(32)
+        self.IdLineEdit.setFont(lineEditFont)
+        self.IdLineEdit.setMaxLength(10)
+        self.formlayout.addRow(self.IdLabel, self.IdLineEdit)
 
         # Row2
+        '''
         self.studentNameLabel = QLabel("昵    称: ")
         self.studentNameLabel.setFont(font)
         self.studentNameLineEdit = QLineEdit()
@@ -54,6 +59,7 @@ class SignUp_W(QWidget):
         self.formlayout.addRow(self.studentNameLabel, self.studentNameLineEdit)
 
         lineEditFont.setPixelSize(10)
+        '''
 
         # Row3
         self.passwordLabel = QLabel("密    码: ")
@@ -94,30 +100,51 @@ class SignUp_W(QWidget):
         self.layout.addWidget(widget, Qt.AlignHCenter)
 
         # 设置验证
-        reg = QRegExp("PB[0~9]{8}")
+        reg = QRegExp("PB[0~9]{7}")
         pValidator = QRegExpValidator(self)
         pValidator.setRegExp(reg)
-        self.studentIdLineEdit.setValidator(pValidator)
+        self.IdLineEdit.setValidator(pValidator)
 
         reg = QRegExp("[a-zA-z0-9]+$")
         pValidator.setRegExp(reg)
         self.passwordLineEdit.setValidator(pValidator)
         self.passwordConfirmLineEdit.setValidator(pValidator)
         self.signUpbutton.clicked.connect(self.SignUp)
-        self.studentIdLineEdit.returnPressed.connect(self.SignUp)
-        self.studentNameLineEdit.returnPressed.connect(self.SignUp)
+        self.IdLineEdit.returnPressed.connect(self.SignUp)
+        #self.studentNameLineEdit.returnPressed.connect(self.SignUp)
         self.passwordLineEdit.returnPressed.connect(self.SignUp)
         self.passwordConfirmLineEdit.returnPressed.connect(self.SignUp)
 
     def SignUp(self):
-        studentId = self.studentIdLineEdit.text()
-        studentName = self.studentNameLineEdit.text()
+        Id = self.IdLineEdit.text()
+
+        #studentName = self.studentNameLineEdit.text()
         password = self.passwordLineEdit.text()
         confirmPassword = self.passwordConfirmLineEdit.text()
-        if (studentId == "" or studentName == "" or password == "" or confirmPassword == ""):
+        if (Id == "" or password == "" or confirmPassword == ""):
             print(QMessageBox.warning(self, "警告", "表单不可为空，请重新输入", QMessageBox.Yes, QMessageBox.Yes))
             return
         else:
+            if (confirmPassword != password):
+                print(QMessageBox.warning(self, "警告", "两次输入密码不一致，请重新输入", QMessageBox.Yes, QMessageBox.Yes))
+                return
+            elif (confirmPassword == password):
+                print(password)
+                passwd_s = Clinet_S.hash(password)
+
+                str = "1" + Id + passwd_s;
+                str = str.encode('ascii')
+                self.client.tcp_send(str)
+
+                '''
+                if (False):
+                    print(QMessageBox.warning(self, "警告", "该账号已存在,请重新输入", QMessageBox.Yes, QMessageBox.Yes))
+                    return
+                else:
+                    print(QMessageBox.information(self, "提醒", "您已成功注册账号!", QMessageBox.Yes, QMessageBox.Yes))
+                    print(Id)
+                return
+                '''
             '''
             # 需要处理逻辑，1.账号已存在;2.密码不匹配;3.插入user表
             db = QSqlDatabase.addDatabase("QSQLITE")

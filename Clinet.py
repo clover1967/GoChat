@@ -3,6 +3,8 @@ import threading
 import sys
 import time
 import sqlite3
+import struct
+import hashlib
 
 
 class Clinet_S:
@@ -17,7 +19,7 @@ class Clinet_S:
         """
         self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            address = ('192.168.1.104', int(9999))
+            address = ('192.168.1.101', int(9999))
         except Exception as ret:
             msg = '请检查目标IP，目标端口\n'
             print(msg)
@@ -60,13 +62,17 @@ class Clinet_S:
         功能函数，用于TCP服务端和TCP客户端发送消息
         :return: None
         """
+        print(message)
+        length = len(message)
+        message = struct.pack('>L', length) + message
+        print(message)
+
         if self.link is False:
             msg = '请选择服务，并点击连接网络\n'
             print(msg)
         else:
             try:
-                send_msg = (str(message)).encode('ascii')
-                self.tcp_socket.send(send_msg)
+                self.tcp_socket.send(message)
                 msg = 'TCP客户端已发送\n'
                 print(msg)
             except Exception as ret:
@@ -105,6 +111,36 @@ class Clinet_S:
         except Exception:
             pass
 
+    '''
+    消息处理
+    '''
+
+    def server_recv_manage(self, message, client):
+        print("server_recv_manage")
+        print(message)
+        length = struct.unpack('>L',message[0:4])[0]        #字节串message的前4字节表示消息长度
+        instr = message[4:].decode('ascii')
+        print(length, instr)
+        if instr[0] == '1':                                 #sign up to server
+            self.signup_manage(instr, client, length)
+        elif instr[0] == '2':                               #log in to server
+            self.login_manage(instr, client, length)
+        elif instr[0] == '4':                               #send message to server
+            self.msg_manage(instr, length)
+        elif instr[0] == '5':                               #require for friend list to server
+            self.recfriendlist_manage(instr, length)
+        elif instr[0] == '6':                               #add friend
+            self.addfriend_manage(instr, length)
+        elif instr[0] == '':                               #log out to server
+            self.logout_manage(instr, length)
+        elif instr[0] == '7':                               #agree to add friend to server
+            self.agree_manage(instr, length)
+        else:
+            print('unknown instruction')
+
+    '''
+    一些函数
+    '''
     def get_ip_port(self):
 
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -121,3 +157,9 @@ class Clinet_S:
             s.close()
 
         return my_addr
+
+    def hash(src):
+        src = (src + "qewrqefasafsdafa").encode('ascii')
+        m = hashlib.md5()
+        m.update(src)
+        return m.hexdigest()

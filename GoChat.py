@@ -3,7 +3,7 @@
 import sys
 import socket
 
-from SignIn import SignIn_W
+from LogIn import LogIn_W
 from SignUp import SignUp_W
 from ChatHome import ChatHome_W
 from ChatWindow import ChatWindow_W
@@ -16,16 +16,16 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import QDir, QFileInfo, Qt
 
 class GoChat(QMainWindow):
-    num = 0;
+    #clinet = Clinet_S();
     def __init__(self):
         super().__init__()
-
         #服务开启
         self.clinet = Clinet_S();
+        #self.clinet = Clinet_S();
 
         self.resize(300, 600)
         self.setWindowTitle("GoChat")
-        self.widget = SignIn_W(self.clinet)
+        self.widget = LogIn_W(self.clinet)
         self.setCentralWidget(self.widget)
 
         menubar = self.menuBar()
@@ -35,9 +35,9 @@ class GoChat(QMainWindow):
         self.InfoAction.triggered.connect(self.about)
         fileMenu.addAction(self.InfoAction)
 
-        self.SignInAction = QAction( '登录', self)
-        self.SignInAction.triggered.connect(self.SignIn)
-        fileMenu.addAction(self.SignInAction)
+        self.LogInAction = QAction( '登录', self)
+        self.LogInAction.triggered.connect(self.LogIn)
+        fileMenu.addAction(self.LogInAction)
 
         self.SignUpAction = QAction( '注册', self)
         self.SignUpAction.triggered.connect(self.SignUp)
@@ -61,14 +61,14 @@ class GoChat(QMainWindow):
     def unwrite(self):
         _a_ = 1;
 
-    def SignIn(self):
+    def LogIn(self):
         sip.delete(self.widget)
-        self.widget = SignIn_W(self.client);
+        self.widget = LogIn_W(self.clinet);
         self.setCentralWidget(self.widget)
 
     def SignUp(self):
         sip.delete(self.widget)
-        self.widget = SignUp_W();
+        self.widget = SignUp_W(self.clinet);
         self.setCentralWidget(self.widget)
 
 
