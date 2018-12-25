@@ -16,8 +16,10 @@ class GoChat_Server:
         self.client_th = None
         self.client_socket_list = list()                    #用于轮询的客户端socket列表
         self.client_online_dict = dict()                    #在线客户端socket字典,key为账号(8byte字符串),value为socket对象
-        self.client_info_dict = dict()                      #用户个人信息字典,key为账号(8byte字符串),value为list,第0个元素为密码,之后的元素为好友账号
-                                                            #以上两个字典应从文件读入
+        self.client_info_dict = dict()                      #用户个人信息字典,key为账号(8byte字符串),value为密码
+        self.client_friend_dict = dict()                    #用户好友字典,key为账号,value为好友账号的set(每个都是8byte字符串)
+        self.load_info('info.txt')                          #从文件读入字典
+        self.load_friend('friend.txt')
         self.link = False  # 用于标记是否开启了连接
 
         #开启ID-Key数据库
@@ -137,7 +139,6 @@ class GoChat_Server:
             stopThreading.stop_thread(self.client_th)
         except Exception:
             pass
-
     #以下是服务端处理客户端发来的消息的函数
 
     def signup_manage(self, message, client, length):           #服务端收到客户端的注册消息
@@ -148,15 +149,16 @@ class GoChat_Server:
         password = message[9:]
         mutex.lock.acquire()                                    #加锁
         if Id in self.client_info_dict.keys():                  #账号重复
-            retmsg = '0'.encode('ascii')                        #服务端发送'0',表示注册失败
+            retmsg = '10'.encode('ascii')                       #服务端发送'0',表示注册失败
             try:                                                #使用try except语句,避免运行时爆炸
                 client.sendall(retmsg)
             except Exception:
                 print('client crashed')
             mutex.lock.release()                                #释放锁
             return
-        self.client_info_dict[Id].append(password)              #该字典为用户个人信息,key为账号,value为列表,第0个元素为密码,之后的元素为好友账号
-        retmsg = ('1' + Id).encode('ascii')                     #服务端发送'1'+账号表示注册成功
+        self.client_info_dict[Id].append(password)              #该字典为用户个人信息,key为账号,value为密码
+        self.client_friend_dict[Id] = set()                     #初始化用户好友字典
+        retmsg = ('11' + Id).encode('ascii')                    #服务端发送'1'+账号表示注册成功
         try:
             client.sendall(retmsg)
         except Exception:
@@ -171,7 +173,7 @@ class GoChat_Server:
         password = message[9:]
         mutex.lock.acquire()
         if Id not in self.client_info_dict.keys():              #账号不存在
-            retmsg = '0'.encode('ascii')                        #服务端发送'0',表示登陆失败
+            retmsg = '20'.encode('ascii')                       #服务端发送'0',表示登陆失败
             try:
                 client.sendall(retmsg)
             except Exception:
@@ -179,7 +181,7 @@ class GoChat_Server:
             mutex.lock.release()
             return
         elif password != self.client_info_dict[Id][0]:          #密码不正确
-            retmsg = '0'.encode('ascii')                        #服务端发送'0',表示登陆失败
+            retmsg = '20'.encode('ascii')                       #服务端发送'0',表示登陆失败
             try:
                 client.sendall(retmsg)
             except Exception:
@@ -187,7 +189,7 @@ class GoChat_Server:
             mutex.lock.release()
             return
         self.client_online_dict[Id] = client                    #登陆成功,将client加入在线字典(该变量注释见init函数)
-        retmsg = ('1' + Id).encode('ascii')                     #服务端发送'1'+账号表示登陆成功
+        retmsg = ('21' + Id).encode('ascii')                    #服务端发送'1'+账号表示登陆成功
         try:
             client.sendall(retmsg)
         except Exception:
@@ -202,7 +204,7 @@ class GoChat_Server:
         to_id = message[9:17]
         mutex.lock.acquire()
         if to_id not in self.client_online_dict.keys():         #对方不在线
-            retmsg = '0'.encode('ascii')
+            retmsg = '30'.encode('ascii')
             try:
                 self.client_online_dict[from_id].sendall(retmsg)
             except Exception:
@@ -224,8 +226,8 @@ class GoChat_Server:
         ret = str()
         i = 0
         mutex.lock.acquire()
-        if Id not in self.client_info_dict.keys():              #账号对应的个人信息(密码、好友列表)不存在(不应该走到这里)
-            retmsg = '0'.encode('ascii')
+        if Id not in self.client_info_dict.keys():              #账号对应的个人信息不存在(不应该走到这里)
+            retmsg = '40'.encode('ascii')
             try:
                 self.client_online_dict[Id].sendall(retmsg)
             except Exception:
@@ -233,10 +235,7 @@ class GoChat_Server:
             mutex.lock.release()
             return
         num = 0 
-        for item in self.client_info_dict[Id]:                  #个人信息是一个列表,第0个元素是密码,之后的元素是好友账号(每个8byte)
-            if i == 0:
-                i += 1
-                continue
+        for item in self.client_friend_dict[Id]:
             if item in self.client_online_dict.keys():          #只返回在线好友列表
                 num += 1
                 ret = ret + item
@@ -257,7 +256,7 @@ class GoChat_Server:
         mutex.lock.acquire()
         if to_id not in self.client_online_dict.keys():         #要添加的好友不在线
             try:
-                retmsg = '0'.encode('ascii')
+                retmsg = '50'.encode('ascii')
                 self.client_online_dict[from_id].sendall(retmsg)
             except Exception:
                 print('client crashed')
@@ -270,7 +269,7 @@ class GoChat_Server:
             mutex.lock.release()
             return
         try:
-            retmsg = '1'.encode('ascii')                        #给发送方返回发送成功消息
+            retmsg = '51'.encode('ascii')                       #给发送方返回发送成功消息
             self.client_online_dict[from_id].sendall(retmsg)
         except Exception:
             print('client crashed')
@@ -293,27 +292,52 @@ class GoChat_Server:
         agr_id = message[1:9]
         req_id = message[9:17]
         mutex.lock.acquire()
-        if agr_id not in self.client_info_dict.keys():          #若同意者个人信息不存在(不应该走到这里)
+        if agr_id not in self.client_friend_dict.keys():        #若同意者个人信息不存在(不应该走到这里)
             mutex.lock.release()
             return
-        if req_id not in self.client_info_dict.keys():          #若发送者个人信息不存在
-            retmsg = '0'.encode('ascii')
+        if req_id not in self.client_friend_dict.keys():        #若发送者个人信息不存在
+            retmsg = '70'.encode('ascii')
             try:
                 self.client_online_dict[agr_id].sendall(retmsg)
             except Exception:
                 print('client crashed')
             mutex.lock.release()
             return
-        self.client_info_dict[agr_id].append(req_id)            #互加好友
-        self.client_info_dict[req_id].append(agr_id)
+        self.client_friend_dict[agr_id].add(req_id)             #互加好友
+        self.client_friend_dict[req_id].add(agr_id)
         try:
-            retmsg = ('7' + agr_id).encode('ascii')             #向请求者发送好友申请已通过的消息('7')+同意者账号(8byte)
+            retmsg = ('71' + agr_id).encode('ascii')            #向请求者发送好友申请已通过的消息('7')+同意者账号(8byte)
             self.client_online_dict[req_id].sendall(retmsg)
         except Exception:
             print('client crashed or is not online')            #申请者可能不在线
         mutex.lock.release()
 
+    def delete_manage(self, message, length):                   #服务端收到客户端的删除好友消息
+        if len(message) < length:                               #message格式为:'8'+删除者账号(8byte)+被删除者账号(8byte)
+            print("packed message might be broken")
+            return
+        req_id = message[1:9]                                   #删除者账号
+        del_id = message[9:17]                                  #被删除者账号
+        mutex.lock.acquire()
+        try:
+            self.client_friend_dict[req_id].remove(del_id)      #互删好友
+        except Exception:
+            pass
+        try:
+            self.client_friend_dict[del_id].remove(req_id)
+        except Exception:
+            pass
+        reqmsg = ('81' + del_id).encode('ascii')                #不论操作结果如何,均给发送删除请求的客户端发送成功消息
+        try:
+            self.client_online_dict[req_id].sendall(reqmsg)
+        except Exception:
+            print('client crashed or is not online')
+        mutex.lock.release()
+
     def server_recv_manage(self, message, client):
+        if len(message) <= 4:
+            print("packed message might be broken")
+            return
         length = struct.unpack('>L',message[0:4])[0]        #字节串message的前4字节表示消息长度
         instr = message[4:].decode('ascii')
         if instr[0] == '1':                                 #sign up to server
@@ -330,8 +354,34 @@ class GoChat_Server:
             self.logout_manage(instr, length)
         elif instr[0] == '7':                               #agree to add friend to server
             self.agree_manage(instr, length)
+        elif instr[0] == '8':
+            self.delete_manage(instr, length)
         else:
             print('unknown instruction')
+
+    def load_info(self, filename):
+        rp = open(filename, 'r')
+        mutex.lock.acquire()
+        while rp:
+            s = rp.readline()
+            l = s.split(' ')
+            self.client_info_dict[l[0]] = l[1]
+        rp.close()
+        mutex.lock.release()
+
+    def load_friend(self, filename):
+        rp = open(filename, 'r')
+        mutex.lock.acquire()
+        while rp:
+            s = rp.readline()
+            l = s.split(' ')
+            n = int(l[1])
+            self.client_friend_dict[l[0]] = set()
+            for i in range(n):
+                f = rp.readline()
+                self.client_friend_dict[l[0]].add(f)
+        rp.close()
+        mutex.lock.release()
 
 if __name__ == '__main__':
     GoChat_Server()
