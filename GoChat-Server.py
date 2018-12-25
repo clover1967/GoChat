@@ -354,7 +354,7 @@ class GoChat_Server:
             self.logout_manage(instr, length)
         elif instr[0] == '7':                               #agree to add friend to server
             self.agree_manage(instr, length)
-        elif instr[0] == '8':
+        elif instr[0] == '8':                               #delete friend to server
             self.delete_manage(instr, length)
         else:
             print('unknown instruction')
